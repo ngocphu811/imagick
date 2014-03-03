@@ -556,10 +556,18 @@ func (mw *MagickWand) CycleColormapImage(displace int) error {
 // pixels: This array of values contain the pixel components as defined by the
 // type.
 //
-func (mw *MagickWand) ConstituteImage(cols, rows uint, pmap string, stype StorageType, pixels []interface{}) error {
+func (mw *MagickWand) ConstituteImage(cols, rows uint, pmap string, stype StorageType, pixels interface{}) error {
 	cspmap := C.CString(pmap)
 	defer C.free(unsafe.Pointer(cspmap))
-	C.MagickConstituteImage(mw.mw, C.size_t(cols), C.size_t(rows), cspmap, C.StorageType(stype), unsafe.Pointer(&pixels[0]))
+
+
+	ptr, err := sliceInterfaceToPointer(&stype, pixels)
+	if err != nil {
+		return err
+	}
+
+
+	C.MagickConstituteImage(mw.mw, C.size_t(cols), C.size_t(rows), cspmap, C.StorageType(stype), ptr)
 	return mw.GetLastError()
 }
 
@@ -1499,66 +1507,76 @@ func (mw *MagickWand) ImplodeImage(radius float64) error {
 // depending on the values of width, height, map, and type.
 //
 func (mw *MagickWand) ImportImagePixels(x, y int, cols, rows uint, pmap string,
-	stype StorageType, pixels interface{}) error {
+	stype StorageType /*12*/, pixels interface{}) error {
+	var (
+		err error
+		ptr unsafe.Pointer //12
+	)
 
 	cspmap := C.CString(pmap)
 	defer C.free(unsafe.Pointer(cspmap))
 
-	var ptr unsafe.Pointer
-
-	switch t := pixels.(type) {
-
-	case []byte:
-		v := &t[0]
-		ptr = unsafe.Pointer(v)
-		if stype == PIXEL_UNDEFINED {
-			stype = PIXEL_CHAR
-		}
-
-	case []float64:
-		v := &t[0]
-		ptr = unsafe.Pointer(v)
-		if stype == PIXEL_UNDEFINED {
-			stype = PIXEL_DOUBLE
-		}
-
-	case []float32:
-		v := &t[0]
-		ptr = unsafe.Pointer(v)
-		if stype == PIXEL_UNDEFINED {
-			stype = PIXEL_FLOAT
-		}
-
-	case []int16:
-		v := &t[0]
-		ptr = unsafe.Pointer(v)
-		if stype == PIXEL_UNDEFINED {
-			stype = PIXEL_SHORT
-		}
-
-	case []int32:
-		v := &t[0]
-		ptr = unsafe.Pointer(v)
-		if stype == PIXEL_UNDEFINED {
-			stype = PIXEL_INTEGER
-		}
-
-	case []int64:
-		v := &t[0]
-		ptr = unsafe.Pointer(v)
-		if stype == PIXEL_UNDEFINED {
-			stype = PIXEL_LONG
-		}
-
-	default:
-		return fmt.Errorf("Type %T is not valid for this operation", t)
-
+	ptr, err = sliceInterfaceToPointer(&stype, pixels)
+	if err != nil {
+		return err
 	}
 
 	C.MagickImportImagePixels(mw.mw, C.ssize_t(x), C.ssize_t(y), C.size_t(cols),
 		C.size_t(rows), cspmap, C.StorageType(stype), ptr)
 
 	return mw.GetLastError()
+}
+
+func sliceInterfaceToPointer(stype *StorageType, pixels interface{}) (ptr unsafe.Pointer, err error) {
+	switch t := pixels.(type) {
+	case []byte:
+		v := &t[0]
+		ptr = unsafe.Pointer(v)
+		if *stype == PIXEL_UNDEFINED {
+			*stype = PIXEL_CHAR
+		}
+
+	case []float64:
+		v := &t[0]
+		ptr = unsafe.Pointer(v)
+		if *stype == PIXEL_UNDEFINED {
+			*stype = PIXEL_DOUBLE
+		}
+
+	case []float32:
+		v := &t[0]
+		ptr = unsafe.Pointer(v)
+		if *stype == PIXEL_UNDEFINED {
+			*stype = PIXEL_FLOAT
+		}
+
+	case []int16:
+		v := &t[0]
+		ptr = unsafe.Pointer(v)
+		if *stype == PIXEL_UNDEFINED {
+			*stype = PIXEL_SHORT
+		}
+
+	case []int32:
+		v := &t[0]
+		ptr = unsafe.Pointer(v)
+		if *stype == PIXEL_UNDEFINED {
+			*stype = PIXEL_INTEGER
+		}
+
+	case []int64:
+		v := &t[0]
+		ptr = unsafe.Pointer(v)
+		if *stype == PIXEL_UNDEFINED {
+			*stype = PIXEL_LONG
+		}
+
+	default:
+		err = fmt.Errorf("Type %T is not valid for this operation", t)
+		ptr = nil
+
+	}
+	return
 }
 
 // Implements the inverse discrete Fourier transform (DFT) of the image either
