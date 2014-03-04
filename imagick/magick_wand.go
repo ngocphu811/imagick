@@ -31,6 +31,11 @@ func NewMagickWandFromImage(img *Image) *MagickWand {
 	return &MagickWand{C.NewMagickWandFromImage(img.img)}
 }
 
+// Returnes C native *MagickWand
+func (mw *MagickWand) Native() *C.MagickWand {
+	return mw.mw
+}
+
 // Clear resources associated with the wand, leaving the wand blank, and ready to be used for a new set of images.
 func (mw *MagickWand) Clear() {
 	C.ClearMagickWand(mw.mw)
